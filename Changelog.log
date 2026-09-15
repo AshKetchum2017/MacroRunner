@@ -1,0 +1,36 @@
+2026-09-14
+[Implementasi awal]
++ Menambahkan MacroRunner untuk menyusun, menyimpan, dan menjalankan antrean macro melalui MacroSelection, MacroQueue, dan MacroRunnerMenu.
++ Mendukung Add, Save, Remove, Clear, dan Select; perubahan yang ditutup tanpa Save dibatalkan.
++ Mencatat durasi setiap macro sampai form ditutup, dengan Continue manual untuk menjalankan langkah berikutnya.
++ Antrean berhenti saat runner menerima error; langkah tersisa ditandai SKIPPED.
++ Menambahkan penyalinan statistik lengkap beserta total durasi.
++ Mengintegrasikan deteksi penutupan pada sepuluh UserForm tujuan.
+~ Memperbaiki Close Perimeter Counter agar tidak mereset MacroRunner.
+
+[Perbaikan path GMS]
+~ Memperbaiki Error 76 saat membuka MacroSelection akibat lokasi folder GMS yang keliru. Pencarian kini mengikuti versi CorelDRAW aktif.
+
+[cmdSet - pemisahan discovery dan diagnosis COM]
+~ Pemilihan dan penyimpanan antrean kini cukup membaca daftar file GMS; pemeriksaan kesiapan macro dilakukan saat Process.
++ Memperjelas pesan error cmdSet agar tahap kegagalan lebih mudah ditelusuri.
+
+[Rekap pekerjaan 14 September]
+Catatan: Validasi saat pengerjaan mencakup pemeriksaan statis dan simulasi. Konfirmasi runtime dicatat pada 15 September.
+
+2026-09-15
+[AutoDistributeUF - registrasi form]
+~ Menambahkan pemetaan form khusus AutoDistributeUF untuk menangani kegagalan pencocokan pembuka otomatis.
++ Memperjelas diagnosis ketika pembuka macro lain tidak ditemukan.
+
+[Error 438 - diagnosis pemanggilan]
++ Pesan kegagalan Process kini menyertakan tahap, sumber error, serta project dan form tujuan.
+~ Mempertahankan pesan error awal meskipun pembaruan tampilan ikut gagal.
+~ Menyesuaikan pengiriman callback antar-macro sebagai kandidat perbaikan Error 438.
+
+[Error 424 - pemuatan form AutoDistributeUF]
++ Memperjelas panduan pemasangan bridge khusus dan generik.
+~ Menggunakan bridge khusus untuk memuat form AutoDistributeUF secara langsung dan mempertahankan sumber error.
+
+[Koreksi nama UserForm terkonfirmasi]
+~ Menyelaraskan katalog, bridge, dan wrapper ke nama form AutoDistributeMenu untuk memperbaiki Error 424 dan kesalahan tipe saat compile.
