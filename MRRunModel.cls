@@ -82,6 +82,7 @@ Public Function StatisticsText() As String
         text = text & Pad(Format$(i + 1, "00"), Len(Format$(pCount, "00"))) & " | " & _
             Pad(CStr(pNames(i)), nameWidth) & " | " & Pad(pStatus(i), 7) & " | " & duration
     Next i
+    text = String$(prefixWidth + 10, "-") & vbCrLf & text
     text = text & vbCrLf & String$(prefixWidth + 10, "-") & vbCrLf
     text = text & Pad("Total", prefixWidth) & SecondsText(total) & " s"
     StatisticsText = text
