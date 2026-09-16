@@ -5,7 +5,7 @@ Private pView As Object
 Private pSequences As Collection
 Private pSelected As Long
 Private pStore As MRSequenceStore
-Private pParser As MRTokenParser
+Private pParser As MRSequenceParser
 Private pCatalog As MRCatalog
 Private pRun As MRRunModel
 Private pClock As MRStopwatch
@@ -18,7 +18,7 @@ Private pClosedSeconds As Double
 Public Sub Initialize(ByVal view As Object)
     Set pView = view
     Set pStore = New MRSequenceStore
-    Set pParser = New MRTokenParser
+    Set pParser = New MRSequenceParser
     Set pCatalog = New MRCatalog
     Set pRun = New MRRunModel
     Set pClock = New MRStopwatch

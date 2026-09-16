@@ -7,7 +7,7 @@ Private Const REG_KEY As String = "SequencesV1"
 
 Public Function LoadSequences() As Collection
     Dim result As New Collection
-    Dim parser As New MRTokenParser
+    Dim parser As New MRSequenceParser
     Dim payload As String, lines As Variant, line As Variant
     payload = GetSetting(REG_APP, REG_SECTION, REG_KEY, vbNullString)
     If Len(payload) > 0 Then
@@ -20,7 +20,7 @@ Public Function LoadSequences() As Collection
 End Function
 
 Public Sub SaveSequences(ByVal sequences As Collection)
-    Dim parser As New MRTokenParser
+    Dim parser As New MRSequenceParser
     Dim payload As String, i As Long
     For i = 1 To sequences.Count
         If i > 1 Then payload = payload & vbLf
