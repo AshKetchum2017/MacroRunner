@@ -23,7 +23,7 @@ Private Sub cmdClear_Click()
 End Sub
 
 Private Sub cmdClose_Click()
-    Unload Me
+    Me.Hide
 End Sub
 
 Private Sub cmdRemove_Click()
@@ -31,7 +31,13 @@ Private Sub cmdRemove_Click()
 End Sub
 
 Private Sub cmdSelect_Click()
-    If pPresenter.SelectSequence(lbxMacroQueue.ListIndex + 1) Then Unload Me
+    If pPresenter Is Nothing Then Exit Sub
+
+    If pPresenter.SelectSequence( _
+        lbxMacroQueue.ListIndex + 1 _
+    ) Then
+        Me.Hide
+    End If
 End Sub
 
 Private Sub cmdSet_Click()

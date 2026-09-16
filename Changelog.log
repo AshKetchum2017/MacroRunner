@@ -12,25 +12,32 @@
 ~ Memperbaiki Error 76 saat membuka MacroSelection akibat lokasi folder GMS yang keliru. Pencarian kini mengikuti versi CorelDRAW aktif.
 
 [cmdSet - pemisahan discovery dan diagnosis COM]
-~ Pemilihan dan penyimpanan antrean kini cukup membaca daftar file GMS; pemeriksaan kesiapan macro dilakukan saat Process.
 + Memperjelas pesan error cmdSet agar tahap kegagalan lebih mudah ditelusuri.
+~ Pemilihan dan penyimpanan antrean kini cukup membaca daftar file GMS; pemeriksaan kesiapan macro dilakukan saat Process.
 
 [Rekap pekerjaan 14 September]
 Catatan: Validasi saat pengerjaan mencakup pemeriksaan statis dan simulasi. Konfirmasi runtime dicatat pada 15 September.
 
 2026-09-15
 [AutoDistributeUF - registrasi form]
-~ Menambahkan pemetaan form khusus AutoDistributeUF untuk menangani kegagalan pencocokan pembuka otomatis.
-+ Memperjelas diagnosis ketika pembuka macro lain tidak ditemukan.
++ Memperjelas diagnosis ketika pembuka macro tidak ditemukan, termasuk informasi project dan prosedur terkait.
+~ Menambahkan pemetaan form khusus AutoDistributeUF agar pembukaan macro lebih stabil.
 
 [Error 438 - diagnosis pemanggilan]
-+ Pesan kegagalan Process kini menyertakan tahap, sumber error, serta project dan form tujuan.
-~ Mempertahankan pesan error awal meskipun pembaruan tampilan ikut gagal.
-~ Menyesuaikan pengiriman callback antar-macro sebagai kandidat perbaikan Error 438.
++ Pesan kegagalan Process kini menampilkan tahap, Source, project, dan form tujuan.
+~ Mempertahankan pesan error awal saat pembaruan tampilan ikut gagal.
+~ Menyesuaikan pengiriman callback antar-macro untuk menguji kemungkinan penyebab Error 438.
 
-[Error 424 - pemuatan form AutoDistributeUF]
-+ Memperjelas panduan pemasangan bridge khusus dan generik.
-~ Menggunakan bridge khusus untuk memuat form AutoDistributeUF secara langsung dan mempertahankan sumber error.
+[Error 424 - pemuatan form]
++ Memperjelas panduan penggunaan bridge khusus dan bridge generik.
+~ Memuat form AutoDistributeUF melalui bridge khusus serta meneruskan Source error dengan lebih konsisten.
 
-[Koreksi nama UserForm terkonfirmasi]
-~ Menyelaraskan katalog, bridge, dan wrapper ke nama form AutoDistributeMenu untuk memperbaiki Error 424 dan kesalahan tipe saat compile.
+[Koreksi nama UserForm]
+~ Menyelaraskan katalog, bridge, dan wrapper ke AutoDistributeMenu untuk memperbaiki Error 424 dan kesalahan tipe saat compile.
+
+[Perbaikan MacroQueue]
+~ Memperbaiki bug path Document yang menghambat pengaturan MacroQueue.
+
+2026-09-16
+[MacroQueue - lifecycle]
+~ Memperbaiki lifecycle MacroQueue agar Select/Save tidak menutup seluruh macro. Form kini disembunyikan dan dapat dibuka kembali tanpa kehilangan state.

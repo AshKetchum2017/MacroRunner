@@ -44,16 +44,49 @@ End Function
 
 Public Sub OpenQueue()
     Dim view As MacroQueue
+
     If Not CanConfigure Then Exit Sub
+
     On Error GoTo Failed
+
     Set view = New MacroQueue
+
     view.Configure Me
     RefreshQueue view
+
+    ' Blocking call.
     view.Show vbModal
+
+    ' MacroQueue hanya Hide.
+    ' Presenter adalah owner lifecycle dan melakukan Unload
+    ' setelah modal call sudah kembali.
+    Unload view
     Set view = Nothing
+
+    ' Sekarang aman meng-update MacroRunnerMenu.
+    Render
+
     Exit Sub
+
 Failed:
-    ShowError "Membuka MacroQueue", Err.Number, Err.Description
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    errorNumber = Err.Number
+    errorDescription = Err.Description
+
+    On Error Resume Next
+
+    If Not view Is Nothing Then
+        Unload view
+        Set view = Nothing
+    End If
+
+    On Error GoTo 0
+
+    ShowError "Membuka MacroQueue", _
+              errorNumber, _
+              errorDescription
 End Sub
 
 Public Sub OpenSelection(ByVal queueView As Object)
@@ -70,6 +103,8 @@ Public Sub OpenSelection(ByVal queueView As Object)
     view.Configure Me, pCatalog.Items
     operation = "MacroSelection.Show vbModal"
     view.Show vbModal
+    operation = "Unload MacroSelection"
+    Unload view
     operation = "Melepas MacroSelection"
     Set view = Nothing
     operation = "RefreshQueue setelah MacroSelection ditutup"
@@ -158,7 +193,6 @@ Public Function SelectSequence(ByVal index As Long) As Boolean
     End If
     pSelected = index
     SelectSequence = True
-    Render
 End Function
 
 Private Function CopySequences(ByVal exclude As Long) As Collection

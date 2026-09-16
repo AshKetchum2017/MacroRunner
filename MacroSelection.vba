@@ -58,11 +58,15 @@ Failed:
 End Sub
 
 Private Sub cmdClose_Click()
-    Unload Me
+    Me.Hide
 End Sub
 
 Private Sub cmdSave_Click()
-    If pPresenter.SaveSelection(CStr(txbSelectedMacro.Value)) Then Unload Me
+    If pPresenter.SaveSelection( _
+        CStr(txbSelectedMacro.Value) _
+    ) Then
+        Me.Hide
+    End If
 End Sub
 
 Private Sub txbSelectedMacro_Change()
