@@ -168,7 +168,7 @@ Private Function DefaultForm(ByVal entryName As String, ByRef modal As Boolean) 
         Case "autolabelmasterbpmenu": DefaultForm = "AutoLabelWizardBP": modal = True
         Case "autosavencreate": DefaultForm = "AutoSNC": modal = True
         Case "exportrelatedwizard": DefaultForm = "ExportRelatedMenu"
-        Case "argarskinmastermenu": DefaultForm = "ARGarskin"
+        Case "objectcontainer": DefaultForm = "ObjectContainerMenu"
         Case "pagerelatedwizard": DefaultForm = "PageRelatedMenu"
         Case "pericountmastermenu": DefaultForm = "PeriCountMenu"
         Case "startpointmastermenu": DefaultForm = "StartPointMenu"
