@@ -1,6 +1,6 @@
 Option Explicit
 
-' Class Module (Name) = MTSequenceParser.
+' Class Module (Name) = MRSequenceParser.
 Public Function Parse(ByVal value As String) As Variant
     Dim parts As Variant
     Dim result() As String

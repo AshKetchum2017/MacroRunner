@@ -14,6 +14,9 @@ Private pClosedDuringCall As Boolean
 Private pToken As String
 Private pSerial As Long
 Private pClosedSeconds As Double
+Private pBehavior As MRBehaviorParser
+Private pBlocks As Collection
+Private pRunIndex As Long
 
 Public Sub Initialize(ByVal view As Object)
     Set pView = view
@@ -22,6 +25,7 @@ Public Sub Initialize(ByVal view As Object)
     Set pCatalog = New MRCatalog
     Set pRun = New MRRunModel
     Set pClock = New MRStopwatch
+    Set pBehavior = New MRBehaviorParser
     Set pSequences = pStore.LoadSequences()
     Render
 End Sub
@@ -133,9 +137,10 @@ Public Function EditTokens(ByVal previous As String, ByVal current As String, By
     EditTokens = pParser.RewriteDeletedDelimiter(previous, current, caret)
 End Function
 
-Public Function SaveSelection(ByVal draft As String) As Boolean
+Public Function SaveSelection(ByVal draft As String, Optional ByVal behavior As String = "") As Boolean
     Dim names As Variant, name As Variant, result As String
     Dim item As MRMacroDefinition, updated As Collection
+    Dim config As MRConfiguration, blocks As Collection
     On Error GoTo Failed
     pCatalog.Refresh
     names = pParser.Parse(draft)
@@ -144,8 +149,12 @@ Public Function SaveSelection(ByVal draft As String) As Boolean
         If Len(result) > 0 Then result = result & " "
         result = result & item.DisplayName & ";"
     Next name
+    Set blocks = pBehavior.Parse(behavior, names)
+    Set config = New MRConfiguration
+    config.SequenceText = result
+    config.BehaviorText = behavior
     Set updated = CopySequences(0)
-    updated.Add result
+    updated.Add config
     pStore.SaveSequences updated
     Set pSequences = updated
     SaveSelection = True
@@ -198,7 +207,7 @@ End Function
 Private Function CopySequences(ByVal exclude As Long) As Collection
     Dim result As New Collection, i As Long
     For i = 1 To pSequences.Count
-        If i <> exclude Then result.Add CStr(pSequences(i))
+        If i <> exclude Then result.Add pSequences(i)
     Next i
     Set CopySequences = result
 End Function
@@ -206,19 +215,27 @@ End Function
 Private Sub RefreshQueue(ByVal view As Object)
     Dim labels As New Collection, i As Long
     For i = 1 To pSequences.Count
-        labels.Add pParser.QueueLabel(CStr(pSequences(i)))
+        labels.Add pParser.QueueLabel(pSequences(i).SequenceText)
     Next i
     view.DisplaySequences labels, pSelected
 End Sub
 
 Public Sub Process()
+    Dim names As Variant, name As Variant, item As MRMacroDefinition
     If Not CanConfigure Then Exit Sub
     If pSelected < 1 Or pSelected > pSequences.Count Then
         MsgBox "Pilih daftar melalui MacroQueue terlebih dahulu.", vbExclamation, "Macro Runner"
         Exit Sub
     End If
     On Error GoTo Failed
-    pRun.Prepare pParser.Parse(CStr(pSequences(pSelected)))
+    names = pParser.Parse(pSequences(pSelected).SequenceText)
+    pCatalog.Refresh
+    For Each name In names
+        Set item = pCatalog.Resolve(CStr(name))
+    Next name
+    Set pBlocks = pBehavior.Parse(pSequences(pSelected).BehaviorText, names)
+    pRunIndex = 0
+    pRun.Prepare names
     RunNext
     Exit Sub
 Failed:
@@ -232,12 +249,15 @@ End Sub
 
 Private Sub RunNext()
     Dim item As MRMacroDefinition, launched As Variant
+    Dim block As MRBehaviorBlock
     Dim observerArgument As Variant
     Dim errorNumber As Long, errorDescription As String, errorSource As String
     Dim operation As String, errorDetails As String, macroName As String
     On Error GoTo Failed
     operation = "MRRunModel.BeginNext"
     pRun.BeginNext
+    pRunIndex = pRunIndex + 1
+    Set block = pBlocks(pRunIndex)
     macroName = pRun.CurrentName
     pSerial = pSerial + 1
     pToken = CStr(pSerial)
@@ -258,8 +278,14 @@ Private Sub RunNext()
     operation = "MRStopwatch.Start sebelum membuka form"
     pClock.Start
     operation = "GMSManager.RunMacro / MRTargetBridge.OpenMacro"
-    launched = Application.GMSManager.RunMacro(item.ProjectName, "MRTargetBridge.OpenMacro", _
-        item.FormName, item.Modal, observerArgument, pToken)
+    If block.HasCommands Then
+        operation = "MRTargetBridge.RunBehavior: " & block.MacroID
+        launched = Application.GMSManager.RunMacro(item.ProjectName, "MRTargetBridge.RunBehavior", _
+            block.SourceText, observerArgument, pToken)
+    Else
+        launched = Application.GMSManager.RunMacro(item.ProjectName, "MRTargetBridge.OpenMacro", _
+            item.FormName, item.Modal, observerArgument, pToken)
+    End If
     Set observerArgument = Nothing
     operation = "Memvalidasi hasil MRTargetBridge.OpenMacro"
     If VarType(launched) <> vbBoolean Then Err.Raise 5, "MacroRunner", "MRTargetBridge tidak mengembalikan status pembukaan yang valid."
@@ -313,6 +339,14 @@ Failed:
     ShowError "Menyalin statistik", Err.Number, Err.Description
 End Sub
 
+' Runtime failures after the script returned (for example a manual draft Save).
+Public Sub BehaviorFailed(ByVal token As String, ByVal number As Long, ByVal description As String)
+    If token <> pToken Or pRun.State <> "running" Then Exit Sub
+    pRun.CompleteCurrent pClock.StopSeconds(), number, description
+    Render
+    ShowError "MacroBehavior " & pRun.CurrentName, number, description
+End Sub
+
 Private Sub Render()
     Dim caption As String
     If pView Is Nothing Then Exit Sub
@@ -324,7 +358,7 @@ Private Sub Render()
             If Len(pRun.LastError) > 0 Then caption = "Dihentikan: " & pRun.LastError
         Case Else: caption = "Pilih daftar macro melalui Queue Settings."
     End Select
-    If CanConfigure And pSelected > 0 Then caption = caption & " | " & pParser.QueueLabel(CStr(pSequences(pSelected)))
+    If CanConfigure And pSelected > 0 Then caption = caption & " | " & pParser.QueueLabel(pSequences(pSelected).SequenceText)
     pView.DisplayState pRun.StatisticsText(), caption, CanConfigure And pSelected > 0, _
         Not pInvoking And pRun.State = "waiting", CanConfigure, CanClose
 End Sub

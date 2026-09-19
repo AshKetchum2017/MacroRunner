@@ -1,6 +1,6 @@
 Option Explicit
 
-' UserForm (Name) = MacroSelection. txbMacroBehavior is reserved for next scope.
+' UserForm (Name) = MacroSelection. Draft is committed only on Save.
 Private pPresenter As MRPresenter
 Private pPrevious As String
 Private pEditing As Boolean
@@ -24,7 +24,13 @@ Public Sub Configure(ByVal presenter As MRPresenter, ByVal items As Collection)
     operation = "txbSelectedMacro.Value"
     txbSelectedMacro.Value = vbNullString
     operation = "txbMacroBehavior.Enabled"
-    txbMacroBehavior.Enabled = False
+    txbMacroBehavior.Enabled = True
+    txbMacroBehavior.MultiLine = True
+    txbMacroBehavior.EnterKeyBehavior = True
+    txbMacroBehavior.TabKeyBehavior = True
+    txbMacroBehavior.ScrollBars = fmScrollBarsBoth
+    txbMacroBehavior.WordWrap = False
+    txbMacroBehavior.Value = vbNullString
     operation = "cmdAdd.Enabled"
     cmdAdd.Enabled = False
     Exit Sub
@@ -63,7 +69,7 @@ End Sub
 
 Private Sub cmdSave_Click()
     If pPresenter.SaveSelection( _
-        CStr(txbSelectedMacro.Value) _
+        CStr(txbSelectedMacro.Value), CStr(txbMacroBehavior.Value) _
     ) Then
         Me.Hide
     End If
