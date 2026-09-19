@@ -17,6 +17,9 @@ Private pClosedSeconds As Double
 Private pBehavior As MRBehaviorParser
 Private pBlocks As Collection
 Private pRunIndex As Long
+Private pBehaviorBridgeStage As String
+Private pBehaviorBridgeError As Long
+Private pBehaviorBridgeDescription As String
 
 Public Sub Initialize(ByVal view As Object)
     Set pView = view
@@ -252,7 +255,7 @@ Private Sub RunNext()
     Dim block As MRBehaviorBlock
     Dim observerArgument As Variant
     Dim errorNumber As Long, errorDescription As String, errorSource As String
-    Dim operation As String, errorDetails As String, macroName As String
+    Dim operation As String, errorDetails As String, macroName As String, procedureName As String
     On Error GoTo Failed
     operation = "MRRunModel.BeginNext"
     pRun.BeginNext
@@ -263,6 +266,9 @@ Private Sub RunNext()
     pToken = CStr(pSerial)
     pInvoking = True
     pClosedDuringCall = False
+    pBehaviorBridgeStage = vbNullString
+    pBehaviorBridgeError = 0
+    pBehaviorBridgeDescription = vbNullString
     operation = "MRStopwatch.Start sebelum pemeriksaan katalog"
     pClock.Start
     operation = "Menampilkan status RUNNING"
@@ -277,19 +283,26 @@ Private Sub RunNext()
     ' Successful timing starts at the actual launch, excluding catalog lookup.
     operation = "MRStopwatch.Start sebelum membuka form"
     pClock.Start
-    operation = "GMSManager.RunMacro / MRTargetBridge.OpenMacro"
     If block.HasCommands Then
-        operation = "MRTargetBridge.RunBehavior: " & block.MacroID
-        launched = Application.GMSManager.RunMacro(item.ProjectName, "MRTargetBridge.RunBehavior", _
+        procedureName = "MRTargetBridge.RunBehavior"
+        operation = "GMSManager.RunMacro / " & procedureName
+        launched = Application.GMSManager.RunMacro(item.ProjectName, procedureName, _
             block.SourceText, observerArgument, pToken)
     Else
-        launched = Application.GMSManager.RunMacro(item.ProjectName, "MRTargetBridge.OpenMacro", _
+        procedureName = "MRTargetBridge.OpenMacro"
+        operation = "GMSManager.RunMacro / " & procedureName
+        launched = Application.GMSManager.RunMacro(item.ProjectName, procedureName, _
             item.FormName, item.Modal, observerArgument, pToken)
     End If
     Set observerArgument = Nothing
-    operation = "Memvalidasi hasil MRTargetBridge.OpenMacro"
-    If VarType(launched) <> vbBoolean Then Err.Raise 5, "MacroRunner", "MRTargetBridge tidak mengembalikan status pembukaan yang valid."
-    If Not CBool(launched) Then Err.Raise 5, "MacroRunner", "Macro tujuan gagal dibuka."
+    operation = "Memvalidasi hasil " & procedureName
+    If block.HasCommands Then
+        ValidateBehaviorBridge launched
+    Else
+        If VarType(launched) <> vbBoolean Then Err.Raise 5, "MacroRunner", _
+            procedureName & " tidak mengembalikan Boolean. " & BridgeResultType(launched)
+        If Not CBool(launched) Then Err.Raise 5, "MacroRunner", "Macro tujuan gagal dibuka."
+    End If
     pInvoking = False
     operation = "Mencatat penutupan form modal"
     If pClosedDuringCall Then pRun.CompleteCurrent pClosedSeconds, 0, vbNullString
@@ -300,6 +313,11 @@ Failed:
     errorNumber = Err.Number
     errorSource = Err.Source
     errorDescription = Err.Description
+    If pBehaviorBridgeError <> 0 Then
+        errorNumber = pBehaviorBridgeError
+        errorSource = "MRTargetBridge.RunBehavior"
+        errorDescription = pBehaviorBridgeDescription
+    End If
     errorDetails = "Tahap: " & operation & vbCrLf & "Source: " & errorSource & vbCrLf & errorDescription
     If Not item Is Nothing Then
         errorDetails = errorDetails & vbCrLf & "Project: " & item.ProjectName & _
@@ -314,6 +332,40 @@ Failed:
     On Error GoTo 0
     ShowError "Menjalankan " & macroName, errorNumber, errorDetails
 End Sub
+
+' These callbacks report dispatch/initialization, not completion of the macro step.
+' Keep the error until RunMacro returns: hosts may not expose the function result.
+Public Sub BehaviorBridgeEntered(ByVal token As String)
+    If Not pInvoking Or token <> pToken Then Exit Sub
+    If Len(pBehaviorBridgeStage) > 0 Then Exit Sub
+    pBehaviorBridgeStage = "entered"
+End Sub
+
+Public Sub BehaviorBridgeFinished(ByVal token As String, ByVal number As Long, ByVal description As String)
+    If Not pInvoking Or token <> pToken Then Exit Sub
+    If pBehaviorBridgeStage <> "entered" Then Exit Sub
+    pBehaviorBridgeError = number
+    pBehaviorBridgeDescription = description
+    pBehaviorBridgeStage = "returned"
+End Sub
+
+Private Sub ValidateBehaviorBridge(ByVal result As Variant)
+    If pBehaviorBridgeError <> 0 Then _
+        Err.Raise pBehaviorBridgeError, "MRTargetBridge.RunBehavior", pBehaviorBridgeDescription
+    If pBehaviorBridgeStage = "returned" Then Exit Sub
+    If Len(pBehaviorBridgeStage) = 0 Then
+        Err.Raise 5, "MacroRunner", "Tidak menerima konfirmasi masuk MRTargetBridge.RunBehavior." & vbCrLf & _
+            BridgeResultType(result) & vbCrLf & _
+            "Perbarui MRTargetBridge dari folder Export Related pada GMS tujuan, lalu Debug > Compile kedua project. " & _
+            "Jika tetap gagal, pasang breakpoint pada baris pertama RunBehavior untuk memastikan prosedur dimasuki."
+    End If
+    Err.Raise 5, "MacroRunner", "MRTargetBridge.RunBehavior sudah dimasuki, tetapi belum melaporkan hasil sesi." & vbCrLf & _
+        BridgeResultType(result) & vbCrLf & "Periksa error/breakpoint pada ERBehaviorSession.Start."
+End Sub
+
+Private Function BridgeResultType(ByVal result As Variant) As String
+    BridgeResultType = "Nilai balik RunMacro: " & TypeName(result) & " (VarType=" & CStr(VarType(result)) & ")."
+End Function
 
 ' A modal launch may still be on the stack. Never run the next macro here.
 Public Sub MacroUnloaded(ByVal token As String)
