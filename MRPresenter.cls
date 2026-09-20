@@ -20,6 +20,8 @@ Private pRunIndex As Long
 Private pBehaviorBridgeStage As String
 Private pBehaviorBridgeError As Long
 Private pBehaviorBridgeDescription As String
+Private pBehaviorBridgeProcedure As String
+Private pPreflighting As Boolean
 
 Public Sub Initialize(ByVal view As Object)
     Set pView = view
@@ -98,16 +100,27 @@ End Sub
 
 Public Sub OpenSelection(ByVal queueView As Object)
     Dim view As MacroSelection
+    Dim availableItems As Collection
     Dim operation As String, errorNumber As Long
     Dim errorSource As String, errorDescription As String
     If Not CanConfigure Then Exit Sub
     On Error GoTo Failed
     operation = "MRCatalog.Refresh (daftar file GMS)"
+    On Error Resume Next
     pCatalog.Refresh
+    errorNumber = Err.Number: errorDescription = Err.Description
+    On Error GoTo Failed
+    If errorNumber = 0 Then
+        Set availableItems = pCatalog.Items
+    Else
+        Set availableItems = New Collection
+        MsgBox "Daftar GMS tidak tersedia; nama macro tetap dapat diketik manual." & vbCrLf & _
+            errorDescription, vbInformation, "Macro Selection"
+    End If
     operation = "New MacroSelection"
     Set view = New MacroSelection
     operation = "MacroSelection.Configure"
-    view.Configure Me, pCatalog.Items
+    view.Configure Me, availableItems
     operation = "MacroSelection.Show vbModal"
     view.Show vbModal
     operation = "Unload MacroSelection"
@@ -141,17 +154,13 @@ Public Function EditTokens(ByVal previous As String, ByVal current As String, By
 End Function
 
 Public Function SaveSelection(ByVal draft As String, Optional ByVal behavior As String = "") As Boolean
-    Dim names As Variant, name As Variant, result As String
-    Dim item As MRMacroDefinition, updated As Collection
+    Dim names As Variant, result As String
+    Dim updated As Collection
     Dim config As MRConfiguration, blocks As Collection
     On Error GoTo Failed
-    pCatalog.Refresh
     names = pParser.Parse(draft)
-    For Each name In names
-        Set item = pCatalog.Resolve(CStr(name))
-        If Len(result) > 0 Then result = result & " "
-        result = result & item.DisplayName & ";"
-    Next name
+    ' The selected sequence defines local MacroID references, even offline.
+    result = pParser.Canonical(draft)
     Set blocks = pBehavior.Parse(behavior, names)
     Set config = New MRConfiguration
     config.SequenceText = result
@@ -224,25 +233,68 @@ Private Sub RefreshQueue(ByVal view As Object)
 End Sub
 
 Public Sub Process()
-    Dim names As Variant, name As Variant, item As MRMacroDefinition
+    Dim names As Variant, number As Long, description As String
     If Not CanConfigure Then Exit Sub
     If pSelected < 1 Or pSelected > pSequences.Count Then
         MsgBox "Pilih daftar melalui MacroQueue terlebih dahulu.", vbExclamation, "Macro Runner"
         Exit Sub
     End If
     On Error GoTo Failed
+    pBehaviorBridgeError = 0
+    pBehaviorBridgeProcedure = "Grammar konfigurasi"
     names = pParser.Parse(pSequences(pSelected).SequenceText)
-    pCatalog.Refresh
-    For Each name In names
-        Set item = pCatalog.Resolve(CStr(name))
-    Next name
     Set pBlocks = pBehavior.Parse(pSequences(pSelected).BehaviorText, names)
+    PreflightAll
     pRunIndex = 0
     pRun.Prepare names
     RunNext
     Exit Sub
 Failed:
-    ShowError "Menyiapkan antrean", Err.Number, Err.Description
+    number = Err.Number: description = Err.Description
+    pInvoking = False: pPreflighting = False
+    On Error Resume Next
+    Render
+    On Error GoTo 0
+    ShowError "Preflight antrean / " & pBehaviorBridgeProcedure, number, description
+End Sub
+
+Private Sub PreflightAll()
+    Dim block As MRBehaviorBlock, item As MRMacroDefinition, result As Variant
+    Dim observerArgument As Variant, index As Long
+    Dim number As Long, description As String
+    On Error GoTo Failed
+    pInvoking = True: pPreflighting = True
+    pBehaviorBridgeProcedure = "Discovery GMS"
+    Render
+    pCatalog.Refresh
+    For Each block In pBlocks
+        index = index + 1
+        pBehaviorBridgeProcedure = "Resolusi langkah " & CStr(index) & ": " & block.MacroID
+        Set item = pCatalog.ResolveForRun(block.MacroID, Len(block.SourceText) > 0)
+        If Len(block.SourceText) > 0 Then
+            pSerial = pSerial + 1
+            pToken = "preflight:" & CStr(pSerial)
+            pBehaviorBridgeStage = vbNullString
+            pBehaviorBridgeError = 0
+            pBehaviorBridgeDescription = vbNullString
+            pBehaviorBridgeProcedure = "MRTargetBridge.ValidateBehavior"
+            Set observerArgument = Me
+            result = Application.GMSManager.RunMacro(item.ProjectName, pBehaviorBridgeProcedure, _
+                block.SourceText, observerArgument, pToken)
+            Set observerArgument = Nothing
+            ValidateBehaviorBridge result
+        End If
+    Next block
+    pPreflighting = False: pInvoking = False
+    Exit Sub
+Failed:
+    number = Err.Number: description = Err.Description
+    If pBehaviorBridgeError <> 0 Then
+        number = pBehaviorBridgeError: description = pBehaviorBridgeDescription
+    End If
+    Set observerArgument = Nothing
+    If Not block Is Nothing Then description = "Langkah " & CStr(index) & " / " & block.MacroID & vbCrLf & description
+    Err.Raise number, "MRPresenter.PreflightAll", description
 End Sub
 
 Public Sub ContinueRun()
@@ -276,15 +328,16 @@ Private Sub RunNext()
     operation = "MRCatalog.Refresh"
     pCatalog.Refresh
     operation = "MRCatalog.ResolveForRun: " & macroName
-    Set item = pCatalog.ResolveForRun(pRun.CurrentName)
+    Set item = pCatalog.ResolveForRun(pRun.CurrentName, Len(block.SourceText) > 0)
     operation = "Menyiapkan referensi callback MRPresenter"
     ' Preserve an object-valued Variant at the COM ParamArray boundary.
     Set observerArgument = Me
     ' Successful timing starts at the actual launch, excluding catalog lookup.
     operation = "MRStopwatch.Start sebelum membuka form"
     pClock.Start
-    If block.HasCommands Then
+    If Len(block.SourceText) > 0 Then
         procedureName = "MRTargetBridge.RunBehavior"
+        pBehaviorBridgeProcedure = procedureName
         operation = "GMSManager.RunMacro / " & procedureName
         launched = Application.GMSManager.RunMacro(item.ProjectName, procedureName, _
             block.SourceText, observerArgument, pToken)
@@ -296,7 +349,7 @@ Private Sub RunNext()
     End If
     Set observerArgument = Nothing
     operation = "Memvalidasi hasil " & procedureName
-    If block.HasCommands Then
+    If Len(block.SourceText) > 0 Then
         ValidateBehaviorBridge launched
     Else
         If VarType(launched) <> vbBoolean Then Err.Raise 5, "MacroRunner", _
@@ -351,16 +404,16 @@ End Sub
 
 Private Sub ValidateBehaviorBridge(ByVal result As Variant)
     If pBehaviorBridgeError <> 0 Then _
-        Err.Raise pBehaviorBridgeError, "MRTargetBridge.RunBehavior", pBehaviorBridgeDescription
+        Err.Raise pBehaviorBridgeError, pBehaviorBridgeProcedure, pBehaviorBridgeDescription
     If pBehaviorBridgeStage = "returned" Then Exit Sub
     If Len(pBehaviorBridgeStage) = 0 Then
-        Err.Raise 5, "MacroRunner", "Tidak menerima konfirmasi masuk MRTargetBridge.RunBehavior." & vbCrLf & _
+        Err.Raise 5, "MacroRunner", "Tidak menerima konfirmasi masuk " & pBehaviorBridgeProcedure & "." & vbCrLf & _
             BridgeResultType(result) & vbCrLf & _
-            "Perbarui MRTargetBridge dari folder Export Related pada GMS tujuan, lalu Debug > Compile kedua project. " & _
-            "Jika tetap gagal, pasang breakpoint pada baris pertama RunBehavior untuk memastikan prosedur dimasuki."
+            "Perbarui MRTargetBridge pada GMS tujuan dan compile kedua project. " & _
+            "Pastikan prosedur tersebut tersedia dan memberi callback masuk/hasil."
     End If
-    Err.Raise 5, "MacroRunner", "MRTargetBridge.RunBehavior sudah dimasuki, tetapi belum melaporkan hasil sesi." & vbCrLf & _
-        BridgeResultType(result) & vbCrLf & "Periksa error/breakpoint pada ERBehaviorSession.Start."
+    Err.Raise 5, "MacroRunner", pBehaviorBridgeProcedure & " sudah dimasuki, tetapi belum melaporkan hasil sesi." & vbCrLf & _
+        BridgeResultType(result) & vbCrLf & "Periksa error/breakpoint pada validator atau session target."
 End Sub
 
 Private Function BridgeResultType(ByVal result As Variant) As String
@@ -410,6 +463,7 @@ Private Sub Render()
             If Len(pRun.LastError) > 0 Then caption = "Dihentikan: " & pRun.LastError
         Case Else: caption = "Pilih daftar macro melalui Queue Settings."
     End Select
+    If pPreflighting Then caption = "Memvalidasi seluruh antrean sebelum eksekusi."
     If CanConfigure And pSelected > 0 Then caption = caption & " | " & pParser.QueueLabel(pSequences(pSelected).SequenceText)
     pView.DisplayState pRun.StatisticsText(), caption, CanConfigure And pSelected > 0, _
         Not pInvoking And pRun.State = "waiting", CanConfigure, CanClose

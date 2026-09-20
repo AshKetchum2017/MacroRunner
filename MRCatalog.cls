@@ -77,7 +77,7 @@ End Function
 
 ' Only Process needs executable metadata. Selection/Add/Save use file names.
 ' Do not enumerate the procedures of unrelated GMS projects while opening a form.
-Public Function ResolveForRun(ByVal name As String) As MRMacroDefinition
+Public Function ResolveForRun(ByVal name As String, Optional ByVal behaviorOnly As Boolean = False) As MRMacroDefinition
     Dim item As MRMacroDefinition
     Dim projects As GMSProjects, project As GMSProject, matched As GMSProject
     Dim macros As GMSMacros, macro As GMSMacro
@@ -109,6 +109,11 @@ Public Function ResolveForRun(ByVal name As String) As MRMacroDefinition
     If matched Is Nothing Then Err.Raise 5, "MacroRunner", "GMS belum dimuat oleh CorelDRAW: " & name
     operation = "GMSProject.Name: " & targetPath
     item.ProjectName = matched.Name
+    ' Behavior contracts own forms and actions. Resolve only the target project.
+    If behaviorOnly Then
+        Set ResolveForRun = item
+        Exit Function
+    End If
     operation = "Membaca registrasi form: " & item.DisplayName
     item.FormName = RegisteredForm(item.DisplayName, modal)
     If Len(item.FormName) > 0 Then
