@@ -10,7 +10,7 @@ Public Function Parse(ByVal script As String, ByVal names As Variant) As Collect
     Dim ins As MRBehaviorInstruction, form As String, start As Long, i As Long
     pText = script
     pAt = 1
-    White
+    Call SkipWhitespace
     If pAt > Len(pText) Then
         For i = LBound(names) To UBound(names)
             Set block = New MRBehaviorBlock
@@ -65,7 +65,7 @@ Public Function Parse(ByVal script As String, ByVal names As Variant) As Collect
         Expect "}"
         block.SourceText = Mid$(pText, start, pAt - start)
         blocks.Add block
-        White
+        Call SkipWhitespace
     Loop
     If blocks.Count <> UBound(names) - LBound(names) + 1 Then Fail "Setiap macro terpilih harus mempunyai satu blok behavior."
     Set Parse = blocks
@@ -79,7 +79,7 @@ Private Sub ReadValue(ByVal ins As MRBehaviorInstruction)
     start = pAt
     Do While pAt <= Len(pText)
         ch = Mid$(pText, pAt, 1)
-        If ch = ";" Or ch = "]" Or ch = " " Or ch = vbTab Or ch = vbCr Or ch = vbLf Then Exit Do
+        If ch = ";" Or ch = "]" Or IsWhitespace(ch) Then Exit Do
         pAt = pAt + 1
     Loop
     raw = Mid$(pText, start, pAt - start)
@@ -122,7 +122,8 @@ End Function
 
 Private Function MacroName() As String
     Dim start As Long
-    White: start = pAt
+    Call SkipWhitespace
+    start = pAt
     Do While pAt <= Len(pText) And Mid$(pText, pAt, 1) <> ":"
         If InStr("{}[];""", Mid$(pText, pAt, 1)) > 0 Then Fail "MacroID tidak valid."
         pAt = pAt + 1
@@ -133,7 +134,8 @@ End Function
 
 Private Function Identifier() As String
     Dim start As Long, ch As String
-    White: start = pAt
+    Call SkipWhitespace
+    start = pAt
     Do While pAt <= Len(pText)
         ch = LCase$(Mid$(pText, pAt, 1))
         If Not ((ch >= "a" And ch <= "z") Or ch = "_" Or (pAt > start And ch >= "0" And ch <= "9")) Then Exit Do
@@ -143,15 +145,23 @@ Private Function Identifier() As String
     Identifier = Mid$(pText, start, pAt - start)
 End Function
 
-Private Sub White()
+Private Function IsWhitespace(ByVal ch As String) As Boolean
+    If Len(ch) = 0 Then Exit Function
+    ' Grammar accepts only TAB, LF, CR and ASCII space outside quoted values.
+    Select Case AscW(ch)
+        Case 9, 10, 13, 32: IsWhitespace = True
+    End Select
+End Function
+
+Private Sub SkipWhitespace()
     Do While pAt <= Len(pText)
-        If InStr(" " & vbTab & vbCr & vbLf, Mid$(pText, pAt, 1)) = 0 Then Exit Do
+        If Not IsWhitespace(Mid$(pText, pAt, 1)) Then Exit Do
         pAt = pAt + 1
     Loop
 End Sub
 
 Private Function Peek() As String
-    White
+    Call SkipWhitespace
     Peek = Mid$(pText, pAt, 1)
 End Function
 
@@ -162,9 +172,17 @@ End Sub
 
 Private Sub Fail(ByVal message As String)
     Dim prefix As String, line As Long, column As Long, lastBreak As Long
+    Dim found As String, code As Long
     prefix = Left$(pText, pAt - 1)
     line = UBound(Split(prefix, vbLf)) + 1
     lastBreak = InStrRev(prefix, vbLf)
     column = pAt - lastBreak
-    Err.Raise 5, "MRBehaviorParser", "Behavior baris " & CStr(line) & ", kolom " & CStr(column) & ": " & message
+    If pAt <= Len(pText) Then
+        code = AscW(Mid$(pText, pAt, 1))
+        If code < 0 Then code = code + 65536
+        found = " Karakter pada posisi ini: U+" & Right$("0000" & Hex$(code), 4) & "."
+    Else
+        found = " Posisi ini berada di akhir input."
+    End If
+    Err.Raise 5, "MRBehaviorParser", "Behavior baris " & CStr(line) & ", kolom " & CStr(column) & ": " & message & found
 End Sub

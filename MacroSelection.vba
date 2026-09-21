@@ -92,3 +92,15 @@ End Sub
 
 Private Sub txbMacroBehavior_Change()
 End Sub
+
+Private Sub txbMacroBehavior_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+    Const INDENT_SPACES As Long = 5
+    Dim caret As Long
+    If KeyCode <> vbKeyTab Or Shift <> 0 Then Exit Sub
+    caret = txbMacroBehavior.SelStart
+    ' Plain Tab always inserts spaces, including while a quoted value is incomplete.
+    KeyCode = 0
+    txbMacroBehavior.SelText = Space$(INDENT_SPACES)
+    txbMacroBehavior.SelStart = caret + INDENT_SPACES
+    txbMacroBehavior.SelLength = 0
+End Sub

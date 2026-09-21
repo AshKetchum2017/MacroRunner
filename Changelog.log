@@ -1,3 +1,4 @@
+------------------------------------------------------------------------------------------------------------------------------------------------------
 2026-09-14
 [Implementasi awal]
 + Menambahkan MacroRunner untuk menyusun, menyimpan, dan menjalankan antrean macro melalui MacroSelection, MacroQueue, dan MacroRunnerMenu.
@@ -15,29 +16,57 @@
 + Memperjelas pesan error cmdSet agar tahap kegagalan lebih mudah ditelusuri.
 ~ Pemilihan dan penyimpanan antrean kini cukup membaca daftar file GMS; pemeriksaan kesiapan macro dilakukan saat Process.
 
-[Rekap pekerjaan 14 September]
-Catatan: Validasi saat pengerjaan mencakup pemeriksaan statis dan simulasi. Konfirmasi runtime dicatat pada 15 September.
-
+------------------------------------------------------------------------------------------------------------------------------------------------------
 2026-09-15
 [AutoDistributeUF - registrasi form]
-+ Memperjelas diagnosis ketika pembuka macro tidak ditemukan, termasuk informasi project dan prosedur terkait.
-~ Menambahkan pemetaan form khusus AutoDistributeUF agar pembukaan macro lebih stabil.
++ Memperjelas diagnosis ketika pembuka macro tidak ditemukan.
+~ Menambahkan pemetaan form khusus AutoDistributeUF untuk menangani kegagalan pencocokan pembuka.
 
 [Error 438 - diagnosis pemanggilan]
-+ Pesan kegagalan Process kini menampilkan tahap, Source, project, dan form tujuan.
-~ Mempertahankan pesan error awal saat pembaruan tampilan ikut gagal.
-~ Menyesuaikan pengiriman callback antar-macro untuk menguji kemungkinan penyebab Error 438.
++ Pesan kegagalan Process kini menyertakan tahap, sumber error, project, dan form tujuan.
+~ Mempertahankan error awal jika pembaruan tampilan ikut gagal.
+~ Menyesuaikan pengiriman callback antar-macro sebagai kandidat perbaikan Error 438.
 
 [Error 424 - pemuatan form]
-+ Memperjelas panduan penggunaan bridge khusus dan bridge generik.
-~ Memuat form AutoDistributeUF melalui bridge khusus serta meneruskan Source error dengan lebih konsisten.
++ Memperjelas panduan pemasangan bridge khusus dan generik.
+~ Menggunakan bridge khusus untuk memuat form AutoDistributeUF dan meneruskan sumber error.
 
 [Koreksi nama UserForm]
 ~ Menyelaraskan katalog, bridge, dan wrapper ke AutoDistributeMenu untuk memperbaiki Error 424 dan kesalahan tipe saat compile.
 
 [Perbaikan MacroQueue]
-~ Memperbaiki bug path Document yang menghambat pengaturan MacroQueue.
+~ Memperbaiki validasi referensi Document yang menghambat pengaturan MacroQueue.
 
+------------------------------------------------------------------------------------------------------------------------------------------------------
 2026-09-16
 [MacroQueue - lifecycle]
-~ Memperbaiki lifecycle MacroQueue agar Select/Save tidak menutup seluruh macro. Form kini disembunyikan dan dapat dibuka kembali tanpa kehilangan state.
+~ Select/Save kini menyembunyikan MacroQueue tanpa menutup seluruh macro, sehingga form dapat dibuka kembali dengan state yang sama.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+2026-09-19
+[MacroBehavior - implementasi source]
++ Mengaktifkan txbMacroBehavior untuk blok macro/form, pengisian nilai bertipe, dan action eksplisit dengan dukungan input multiline.
++ Menambahkan otomatisasi ExportRelated untuk mengatur editor, menyimpan beberapa item pada menu yang sama, memilih item mulai indeks 1, dan memakai Default dari pengaturan tersimpan.
++ Kegagalan Save/Export diteruskan ke runner untuk menghentikan antrean dengan status ERROR/SKIPPED.
++ Menyimpan antrean dan teks behavior dalam Configurations.json versi 2. Data registry lama dimigrasikan saat penyimpanan pertama jika JSON belum tersedia.
++ Menambahkan panduan token MacroBehavior dan pemasangan integrasi kedua project.
+
+[Diagnosis runtime - hasil bridge]
+~ Memperbaiki label diagnosis agar sesuai dengan jalur RunBehavior.
+~ Memvalidasi hasil behavior melalui konfirmasi bridge bertoken serta mempertahankan error aslinya.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+2026-09-20
+[MacroBehavior - validasi dua lapis]
++ Memisahkan grammar generik MacroRunner dari kontrak validasi khusus ExportRelated.
++ Save kini hanya memvalidasi struktur lokal dan referensi sequence, sehingga konfigurasi tetap bisa disimpan saat GMS target belum tersedia.
++ Process menambahkan semantic preflight seluruh antrean sebelum langkah pertama dijalankan. Jika validator menolak atau konfirmasi tidak kembali, eksekusi dibatalkan.
+
+[Penyelarasan MRPresenter]
+~ MRPresenter diselaraskan ulang agar Save tetap lokal, preflight berjalan sebelum eksekusi, dan validator/session generik dipanggil melalui dispatch yang sesuai.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+2026-09-21
+[MacroBehavior multiline dan indentasi]
+~ Memperbaiki pengenalan whitespace MRBehaviorParser untuk tab, LF, CR, dan spasi; pesan error kini memberi kode karakter atau akhir input untuk diagnosis.
+~ Tab tanpa modifier pada txbMacroBehavior kini menyisipkan lima spasi di semua posisi. Tab lama dan teks hasil paste tidak dikonversi.
