@@ -9,7 +9,9 @@ Public Function Encode(ByVal entries As Collection) As String
     result = "{""version"":2,""configurations"":["
     For Each item In entries
         If Right$(result, 1) <> "[" Then result = result & ","
-        result = result & vbCrLf & "  {""sequence"":" & Quote(item.SequenceText) & _
+        result = result & vbCrLf & _
+            "  {""configId"":" & Quote(item.ConfigID) & _
+            ",""{""sequence"":" & Quote(item.SequenceText) & _
             ",""behavior"":" & Quote(item.BehaviorText) & "}"
     Next item
     Encode = result & vbCrLf & "]}"
@@ -41,16 +43,19 @@ End Function
 
 Private Function ReadEntries() As Collection
     Dim entries As New Collection, item As MRConfiguration, key As String
-    Dim sequenceSeen As Boolean, behaviorSeen As Boolean
+    Dim sequenceSeen As Boolean, behaviorSeen As Boolean, configIDSeen As Boolean
     Expect "["
     If Peek() <> "]" Then
         Do
             Set item = New MRConfiguration
-            sequenceSeen = False: behaviorSeen = False
+            sequenceSeen = False: behaviorSeen = False: configIDSeen = False
             Expect "{"
             Do
                 key = ReadString(): Expect ":"
                 Select Case key
+                    Case "configId"
+                        If configIDSeen Then Bad "configId duplikat."
+                        configIDSeen = True: item.ConfigID = ReadString()
                     Case "sequence"
                         If sequenceSeen Then Bad "sequence duplikat."
                         sequenceSeen = True: item.SequenceText = ReadString()
@@ -143,4 +148,3 @@ End Sub
 Private Sub Bad(ByVal message As String)
     Err.Raise 5, "MRConfigJson", "JSON posisi " & CStr(pAt) & ": " & message
 End Sub
-

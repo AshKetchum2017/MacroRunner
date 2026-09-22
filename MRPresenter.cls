@@ -117,11 +117,13 @@ Private Sub OpenSelectionEditor(ByVal queueView As Object, ByVal editIndex As Lo
     Dim operation As String, errorNumber As Long
     Dim errorSource As String, errorDescription As String
     Dim sequenceText As String, behaviorText As String
+    Dim configID As String
 
     If Not CanConfigure Then Exit Sub
     On Error GoTo Failed
 
     If editIndex > 0 Then
+        configID = pSequences(editIndex).ConfigID
         sequenceText = pSequences(editIndex).SequenceText
         behaviorText = pSequences(editIndex).BehaviorText
     End If
@@ -129,8 +131,10 @@ Private Sub OpenSelectionEditor(ByVal queueView As Object, ByVal editIndex As Lo
     operation = "MRCatalog.Refresh (daftar file GMS)"
     On Error Resume Next
     pCatalog.Refresh
-    errorNumber = Err.Number: errorDescription = Err.Description
+    errorNumber = Err.Number
+    errorDescription = Err.Description
     On Error GoTo Failed
+
     If errorNumber = 0 Then
         Set availableItems = pCatalog.Items
     Else
@@ -141,25 +145,33 @@ Private Sub OpenSelectionEditor(ByVal queueView As Object, ByVal editIndex As Lo
 
     operation = "New MacroSelection"
     Set view = New MacroSelection
+
     operation = "MacroSelection.Configure"
-    view.Configure Me, availableItems, sequenceText, behaviorText, editIndex
+    view.Configure Me, availableItems, sequenceText, behaviorText, configID, editIndex
+
     operation = "MacroSelection.Show vbModal"
     view.Show vbModal
+
     operation = "Unload MacroSelection"
     Unload view
+
     operation = "Melepas MacroSelection"
     Set view = Nothing
+
     operation = "RefreshQueue setelah MacroSelection ditutup"
     RefreshQueue queueView, editIndex
     Exit Sub
+
 Failed:
     errorNumber = Err.Number
     errorSource = Err.Source
     errorDescription = Err.Description
+
     On Error Resume Next
     If Not view Is Nothing Then Unload view
     Set view = Nothing
     On Error GoTo 0
+
     ShowError "Membuka MacroSelection / " & operation, errorNumber, _
         "Source: " & errorSource & vbCrLf & errorDescription
 End Sub
@@ -175,23 +187,34 @@ Public Function EditTokens(ByVal previous As String, ByVal current As String, By
     EditTokens = pParser.RewriteDeletedDelimiter(previous, current, caret)
 End Function
 
-Public Function SaveSelection(ByVal draft As String, _
+Public Function SaveSelection(ByVal configID As String, _
+                              ByVal draft As String, _
                               Optional ByVal behavior As String = "", _
                               Optional ByVal editIndex As Long = 0) As Boolean
+
     Dim names As Variant, result As String
     Dim updated As Collection
     Dim config As MRConfiguration, blocks As Collection
+
     On Error GoTo Failed
 
     If editIndex < 0 Or editIndex > pSequences.Count Then _
-        Err.Raise 5, "MRPresenter.SaveSelection", "Index daftar macro tidak valid."
+        Err.Raise 5, "MRPresenter.SaveSelection", _
+                  "Index daftar macro tidak valid."
+
+    configID = Trim$(configID)
+
+    If Len(configID) = 0 Then _
+        Err.Raise 5, "MRPresenter.SaveSelection", _
+                  "ConfigID tidak boleh kosong."
 
     names = pParser.Parse(draft)
-    ' The selected sequence defines local MacroID references, even offline.
+
     result = pParser.Canonical(draft)
     Set blocks = pBehavior.Parse(behavior, names)
 
     Set config = New MRConfiguration
+    config.ConfigID = configID
     config.SequenceText = result
     config.BehaviorText = behavior
 
@@ -204,8 +227,10 @@ Public Function SaveSelection(ByVal draft As String, _
 
     pStore.SaveSequences updated
     Set pSequences = updated
+
     SaveSelection = True
     Exit Function
+
 Failed:
     ShowError "Menyimpan daftar macro", Err.Number, Err.Description
 End Function
@@ -277,7 +302,12 @@ Private Sub RefreshQueue(ByVal view As Object, Optional ByVal highlighted As Lon
     Dim labels As New Collection, i As Long
 
     For i = 1 To pSequences.Count
-        labels.Add pParser.QueueLabel(pSequences(i).SequenceText)
+        If Len(Trim$(pSequences(i).ConfigID)) > 0 Then
+            labels.Add pSequences(i).ConfigID & " | " & _
+                    pParser.QueueLabel(pSequences(i).SequenceText)
+        Else
+            labels.Add pParser.QueueLabel(pSequences(i).SequenceText)
+        End If
     Next i
 
     If highlighted <= 0 Then highlighted = pSelected

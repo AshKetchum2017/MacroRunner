@@ -70,3 +70,9 @@
 [MacroBehavior multiline dan indentasi]
 ~ Memperbaiki pengenalan whitespace MRBehaviorParser untuk tab, LF, CR, dan spasi; pesan error kini memberi kode karakter atau akhir input untuk diagnosis.
 ~ Tab tanpa modifier pada txbMacroBehavior kini menyisipkan lima spasi di semua posisi. Tab lama dan teks hasil paste tidak dikonversi.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+2026-09-22
+[MacroSelection - custom ConfigID]
++ Menambahkan ConfigID TextBox agar setiap konfigurasi MacroRunner dapat diberi custom ID yang berbeda.
++ ConfigID ditampilkan di MacroSelection sehingga konfigurasi lebih mudah dibedakan.

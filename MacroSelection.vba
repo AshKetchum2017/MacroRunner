@@ -9,27 +9,38 @@ Private pEditIndex As Long
 Public Sub Configure(ByVal presenter As MRPresenter, ByVal items As Collection, _
                      Optional ByVal sequenceText As String = vbNullString, _
                      Optional ByVal behaviorText As String = vbNullString, _
+                     Optional ByVal configID As String = vbNullString, _
                      Optional ByVal editIndex As Long = 0)
+
     Dim item As MRMacroDefinition
     Dim operation As String, errorNumber As Long
     Dim errorSource As String, errorDescription As String
+
     On Error GoTo Failed
+
     operation = "Menghubungkan Presenter"
     Set pPresenter = presenter
     pEditIndex = editIndex
+
     operation = "cmbMacroLists.Clear"
     cmbMacroLists.Clear
     operation = "cmbMacroLists.Style"
     cmbMacroLists.Style = fmStyleDropDownList
+
     For Each item In items
         operation = "cmbMacroLists.AddItem: " & item.DisplayName
         cmbMacroLists.AddItem item.DisplayName
     Next item
+
+    operation = "txbConfigID.Value"
+    txbConfigID.Value = configID
+
     operation = "txbSelectedMacro.Value"
     pEditing = True
     txbSelectedMacro.Value = sequenceText
     pPrevious = sequenceText
     pEditing = False
+
     operation = "txbMacroBehavior.Enabled"
     txbMacroBehavior.Enabled = True
     txbMacroBehavior.MultiLine = True
@@ -38,15 +49,19 @@ Public Sub Configure(ByVal presenter As MRPresenter, ByVal items As Collection, 
     txbMacroBehavior.ScrollBars = fmScrollBarsBoth
     txbMacroBehavior.WordWrap = False
     txbMacroBehavior.Value = behaviorText
+
     operation = "cmdAdd.Enabled"
     cmdAdd.Enabled = False
     Exit Sub
+
 Failed:
     pEditing = False
     errorNumber = Err.Number
     errorSource = Err.Source
     errorDescription = Err.Description
-    Err.Raise errorNumber, "MacroSelection.Configure", "Operasi kontrol: " & operation & vbCrLf & _
+
+    Err.Raise errorNumber, "MacroSelection.Configure", _
+        "Operasi kontrol: " & operation & vbCrLf & _
         "Source: " & errorSource & vbCrLf & errorDescription
 End Sub
 
@@ -71,12 +86,16 @@ Failed:
     pPresenter.ShowError "Menambahkan macro", Err.Number, Err.Description
 End Sub
 
+Private Sub txbConfigID_Change()
+End Sub
+
 Private Sub cmdClose_Click()
     Me.Hide
 End Sub
 
 Private Sub cmdSave_Click()
     If pPresenter.SaveSelection( _
+        CStr(txbConfigID.Value), _
         CStr(txbSelectedMacro.Value), _
         CStr(txbMacroBehavior.Value), _
         pEditIndex _
