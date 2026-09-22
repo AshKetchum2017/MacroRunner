@@ -4,14 +4,19 @@ Option Explicit
 Private pPresenter As MRPresenter
 Private pPrevious As String
 Private pEditing As Boolean
+Private pEditIndex As Long
 
-Public Sub Configure(ByVal presenter As MRPresenter, ByVal items As Collection)
+Public Sub Configure(ByVal presenter As MRPresenter, ByVal items As Collection, _
+                     Optional ByVal sequenceText As String = vbNullString, _
+                     Optional ByVal behaviorText As String = vbNullString, _
+                     Optional ByVal editIndex As Long = 0)
     Dim item As MRMacroDefinition
     Dim operation As String, errorNumber As Long
     Dim errorSource As String, errorDescription As String
     On Error GoTo Failed
     operation = "Menghubungkan Presenter"
     Set pPresenter = presenter
+    pEditIndex = editIndex
     operation = "cmbMacroLists.Clear"
     cmbMacroLists.Clear
     operation = "cmbMacroLists.Style"
@@ -20,9 +25,11 @@ Public Sub Configure(ByVal presenter As MRPresenter, ByVal items As Collection)
         operation = "cmbMacroLists.AddItem: " & item.DisplayName
         cmbMacroLists.AddItem item.DisplayName
     Next item
-    pPrevious = vbNullString
     operation = "txbSelectedMacro.Value"
-    txbSelectedMacro.Value = vbNullString
+    pEditing = True
+    txbSelectedMacro.Value = sequenceText
+    pPrevious = sequenceText
+    pEditing = False
     operation = "txbMacroBehavior.Enabled"
     txbMacroBehavior.Enabled = True
     txbMacroBehavior.MultiLine = True
@@ -30,11 +37,12 @@ Public Sub Configure(ByVal presenter As MRPresenter, ByVal items As Collection)
     txbMacroBehavior.TabKeyBehavior = True
     txbMacroBehavior.ScrollBars = fmScrollBarsBoth
     txbMacroBehavior.WordWrap = False
-    txbMacroBehavior.Value = vbNullString
+    txbMacroBehavior.Value = behaviorText
     operation = "cmdAdd.Enabled"
     cmdAdd.Enabled = False
     Exit Sub
 Failed:
+    pEditing = False
     errorNumber = Err.Number
     errorSource = Err.Source
     errorDescription = Err.Description
@@ -69,7 +77,9 @@ End Sub
 
 Private Sub cmdSave_Click()
     If pPresenter.SaveSelection( _
-        CStr(txbSelectedMacro.Value), CStr(txbMacroBehavior.Value) _
+        CStr(txbSelectedMacro.Value), _
+        CStr(txbMacroBehavior.Value), _
+        pEditIndex _
     ) Then
         Me.Hide
     End If

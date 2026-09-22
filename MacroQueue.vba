@@ -30,6 +30,12 @@ Private Sub cmdRemove_Click()
     pPresenter.RemoveSequence Me, lbxMacroLists.ListIndex + 1
 End Sub
 
+Private Sub cmdModify_Click()
+    If pPresenter Is Nothing Then Exit Sub
+
+    pPresenter.ModifySequence Me, lbxMacroLists.ListIndex + 1
+End Sub
+
 Private Sub cmdSelect_Click()
     If pPresenter Is Nothing Then Exit Sub
 
@@ -49,6 +55,7 @@ Private Sub lbxMacroLists_Click()
 End Sub
 
 Private Sub RefreshButtons()
+    cmdModify.Enabled = (lbxMacroLists.ListIndex >= 0)
     cmdRemove.Enabled = (lbxMacroLists.ListIndex >= 0)
     cmdSelect.Enabled = (lbxMacroLists.ListIndex >= 0)
     cmdClear.Enabled = (lbxMacroLists.ListCount > 0)
