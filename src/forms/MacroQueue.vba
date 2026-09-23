@@ -18,16 +18,54 @@ Public Sub DisplaySequences(ByVal labels As Collection, ByVal selected As Long)
     RefreshButtons
 End Sub
 
+Private Sub cmdRemove_Click()
+
+    Dim selectedIndex As Long
+    Dim selectedLabel As String
+    Dim response As VbMsgBoxResult
+
+    If pPresenter Is Nothing Then Exit Sub
+
+    selectedIndex = lbxMacroLists.ListIndex
+    If selectedIndex < 0 Then Exit Sub
+
+    selectedLabel = CStr(lbxMacroLists.List(selectedIndex))
+
+    response = MsgBox( _
+        "Hapus daftar macro berikut?" & vbCrLf & vbCrLf & _
+        selectedLabel, _
+        vbYesNo Or vbQuestion Or vbDefaultButton2, _
+        "Macro Queue")
+
+    If response <> vbYes Then Exit Sub
+
+    pPresenter.RemoveSequence Me, selectedIndex + 1
+
+End Sub
+
 Private Sub cmdClear_Click()
+
+    Dim response As VbMsgBoxResult
+
+    If pPresenter Is Nothing Then Exit Sub
+    If lbxMacroLists.ListCount = 0 Then Exit Sub
+
+    response = MsgBox( _
+        "Hapus seluruh daftar macro?" & vbCrLf & vbCrLf & _
+        CStr(lbxMacroLists.ListCount) & _
+        " konfigurasi akan dihapus." & vbCrLf & _
+        "Tindakan ini tidak dapat dibatalkan.", _
+        vbYesNo Or vbExclamation Or vbDefaultButton2, _
+        "Macro Queue")
+
+    If response <> vbYes Then Exit Sub
+
     pPresenter.ClearSequences Me
+
 End Sub
 
 Private Sub cmdClose_Click()
     Me.Hide
-End Sub
-
-Private Sub cmdRemove_Click()
-    pPresenter.RemoveSequence Me, lbxMacroLists.ListIndex + 1
 End Sub
 
 Private Sub cmdModify_Click()
