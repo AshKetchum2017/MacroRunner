@@ -11,7 +11,7 @@ Public Function Encode(ByVal entries As Collection) As String
         If Right$(result, 1) <> "[" Then result = result & ","
         result = result & vbCrLf & _
             "  {""configId"":" & Quote(item.ConfigID) & _
-            ",""{""sequence"":" & Quote(item.SequenceText) & _
+            ",""sequence"":" & Quote(item.SequenceText) & _
             ",""behavior"":" & Quote(item.BehaviorText) & "}"
     Next item
     Encode = result & vbCrLf & "]}"
