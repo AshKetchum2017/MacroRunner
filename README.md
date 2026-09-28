@@ -14,9 +14,20 @@ Satu konfigurasi mempunyai `ConfigID`, urutan macro, dan `MacroBehavior` opsiona
 - **Modify** membuka konfigurasi yang dipilih dan menyimpan perubahan pada baris yang sama.
 - **Remove** menghapus satu konfigurasi setelah konfirmasi.
 - **Clear** menghapus semua konfigurasi setelah konfirmasi; tindakan ini tidak dapat dibatalkan dari UI.
+- **Up** / **Down** memindahkan konfigurasi terpilih satu posisi dalam antrean. Urutan baru langsung disimpan; urutan macro *di dalam* konfigurasi tidak berubah.
 - **Select** memilih konfigurasi untuk dijalankan.
+- **Close** menutup tampilan Queue tanpa mengakhiri sesi MacroRunner.
 
-Daftar ditampilkan sebagai `ConfigID | MacroA > MacroB`. `ConfigID` wajib diisi saat **Save**, tetapi tidak harus menjadi nama project GMS. Konfigurasi lama yang dimigrasikan tanpa `ConfigID` masih dapat dibaca; isi `ConfigID` saat menyunting dan menyimpannya kembali.
+Setiap konfigurasi tampil sebagai satu blok dua baris dalam `frmMacroLists`: `ConfigID` di atas dan urutan macro di bawahnya, misalnya:
+
+```text
+Produksi label
+ExportRelated > AutoSaveNCreate
+```
+
+Klik salah satu baris untuk memilih blok; pilihan tetap mengikuti konfigurasi saat dipindahkan dengan **Up** / **Down**. Tombol perpindahan hanya aktif jika ada posisi tujuan. `ConfigID` wajib diisi saat **Save**, tetapi tidak harus menjadi nama project GMS. Konfigurasi lama yang dimigrasikan tanpa `ConfigID` tetap dapat dibaca dan hanya menampilkan urutan macro; isi `ConfigID` saat menyunting dan menyimpannya kembali.
+
+`MacroQueue` dapat dibuka kembali dari **Queue Settings** selama runner siap menerima pengaturan. **Select**, **Close**, dan tombol tutup jendela menyembunyikan Queue; ketiganya tidak mengakhiri MacroRunner. Tutup Queue dahulu sebelum memakai **Process** atau menutup `MacroRunnerMenu`.
 
 Di `MacroSelection`, pilih GMS dari `cmbMacroLists` lalu tekan **Add**, atau ketik nama file GMS tanpa `.gms` langsung di `txbSelectedMacro`. Pisahkan nama dengan titik koma:
 
@@ -33,7 +44,7 @@ Macro yang sama boleh muncul lebih dari sekali. Menghapus tepat satu karakter `;
 3. Setelah form utama suatu macro ditutup dan langkahnya menjadi `OK`, tekan **Continue** untuk menjalankan macro berikutnya.
 4. Lihat hasil di `lbxStatistics` atau tekan **Copy Statistic** untuk menyalin seluruh statistik ke clipboard.
 
-Status langkah adalah `PENDING`, `RUNNING`, `OK`, `ERROR`, dan `SKIPPED`. Jika sebuah langkah gagal, antrean berhenti dan langkah berikutnya menjadi `SKIPPED`. Durasi ditampilkan dalam detik dengan tiga angka desimal; waktu menunggu tombol **Continue** tidak dihitung. Penutupan form utama, termasuk waktu interaksi pengguna, menentukan akhir langkah. `MacroRunnerMenu` tidak dapat ditutup saat macro sedang berjalan.
+Status langkah adalah `PENDING`, `RUNNING`, `OK`, `ERROR`, dan `SKIPPED`. Jika sebuah langkah gagal, antrean berhenti dan langkah berikutnya menjadi `SKIPPED`. Durasi ditampilkan dalam detik dengan tiga angka desimal; waktu menunggu tombol **Continue** tidak dihitung. Penutupan form utama, termasuk waktu interaksi pengguna, menentukan akhir langkah. `MacroRunnerMenu` tidak dapat ditutup saat macro sedang berjalan atau `MacroQueue` masih terbuka.
 
 ## MacroBehavior
 
@@ -136,11 +147,11 @@ Setiap entri menyimpan `configId`, `sequence`, dan `behavior`:
 {"version":2,"configurations":[{"configId":"Manual produksi","sequence":"ExportRelated;","behavior":""}]}
 ```
 
-Jika file JSON belum ada, runner membaca konfigurasi lama dari registry `RinCorelMacros/MacroRunner/SequencesV1`. Perubahan pertama melalui **Save**, **Remove**, atau **Clear** menulisnya ke JSON; registry lama tidak dihapus. Setelah JSON ada, file tersebut menjadi sumber konfigurasi. Konfigurasi lama tanpa `configId` bisa dimuat, tetapi **Save** berikutnya tetap memerlukan `ConfigID`. Pilihan aktif dan statistik hanya berlaku selama sesi runner.
+Jika file JSON belum ada, runner membaca konfigurasi lama dari registry `RinCorelMacros/MacroRunner/SequencesV1`. Perubahan pertama melalui **Save**, **Remove**, **Clear**, **Up**, atau **Down** menulisnya ke JSON; registry lama tidak dihapus. Setelah JSON ada, file tersebut menjadi sumber konfigurasi. Konfigurasi lama tanpa `configId` bisa dimuat, tetapi **Save** berikutnya tetap memerlukan `ConfigID`. Urutan konfigurasi mengikuti susunan entri di JSON. Pilihan aktif dan statistik hanya berlaku selama sesi runner.
 
 ## Integrasi di CorelDRAW/VBE
 
-Source di `src/classes/` adalah class module; pertahankan `(Name)` masing-masing saat memasangnya di project MacroRunner. File di `src/forms/` adalah code-behind untuk UserForm dengan nama yang sesuai, bukan file desain `.frm` lengkap. Siapkan kontrol yang disebut di kode form, termasuk `cmdContinue` pada `MacroRunnerMenu` serta `txbConfigID` dan `txbMacroBehavior` pada `MacroSelection`.
+Source di `src/classes/` adalah class module; pertahankan `(Name)` masing-masing saat memasangnya di project MacroRunner. File di `src/forms/` adalah code-behind untuk UserForm dengan nama yang sesuai, bukan file desain `.frm` lengkap. Siapkan kontrol yang disebut di kode form, termasuk `cmdContinue` pada `MacroRunnerMenu`, `txbConfigID` dan `txbMacroBehavior` pada `MacroSelection`, serta `frmMacroLists` (MSForms.Frame), `cmdUp`, dan `cmdDown` pada `MacroQueue`. Sertakan class `MRQueueRow` agar klik pada baris Queue memilih konfigurasi yang sesuai.
 
 MacroRunner mencari `.gms` di folder GMS milik profil CorelDRAW aktif melalui `Application.UserDataPath`. Project tujuan harus sudah dimuat oleh CorelDRAW. `MRCatalog` mempunyai registrasi form untuk `ExportRelated` dan `AutoDistributeUF` serta beberapa nama prosedur pembuka lain; keberadaan nama dalam daftar itu tidak otomatis memasang bridge atau menjamin kompatibilitas target.
 
@@ -158,6 +169,7 @@ Untuk Behavior eksplisit, target juga harus menyediakan implementasi `MRTargetBr
 | `src/classes/MRCatalog.cls` | Pencarian GMS dan resolusi project/form |
 | `src/classes/MRRunModel.cls` | Status antrean dan statistik |
 | `src/classes/MRSequenceStore.cls`, `MRConfigJson.cls` | Penyimpanan dan pembacaan konfigurasi |
+| `src/classes/MRQueueRow.cls` | Event klik untuk judul dan urutan macro pada baris Queue |
 | `src/Integration/` | Template bridge dan contoh hook lifecycle untuk target |
 
 ## Lisensi dan masukan
