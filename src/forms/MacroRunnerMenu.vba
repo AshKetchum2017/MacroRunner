@@ -24,6 +24,11 @@ End Sub
 
 Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
     If Not pPresenter Is Nothing Then
+        If pPresenter.QueueOpen Then
+            Cancel = 1
+            MsgBox "Tutup Macro Queue terlebih dahulu.", vbExclamation, "Macro Runner"
+            Exit Sub
+        End If
         If Not pPresenter.CanClose Then
             Cancel = 1
             MsgBox "Tutup macro yang sedang berjalan terlebih dahulu.", vbExclamation, "Macro Runner"

@@ -2,6 +2,8 @@ Option Explicit
 
 ' Class Module (Name) = MRPresenter. Coordinates views and models.
 Private pView As Object
+Private pQueue As MacroQueue
+Private pQueueOpen As Boolean
 Private pSequences As Collection
 Private pSelected As Long
 Private pStore As MRSequenceStore
@@ -36,15 +38,26 @@ Public Sub Initialize(ByVal view As Object)
 End Sub
 
 Public Sub Detach()
+    If Not pQueue Is Nothing Then
+        pQueue.ReleaseRows
+        pQueue.DetachPresenter
+        Unload pQueue
+        Set pQueue = Nothing
+    End If
+    pQueueOpen = False
     Set pView = Nothing
 End Sub
 
 Public Property Get CanClose() As Boolean
     If pRun Is Nothing Then
-        CanClose = True
+        CanClose = Not pQueueOpen
     Else
-        CanClose = Not pInvoking And pRun.State <> "running"
+        CanClose = Not pQueueOpen And Not pInvoking And pRun.State <> "running"
     End If
+End Property
+
+Public Property Get QueueOpen() As Boolean
+    QueueOpen = pQueueOpen
 End Property
 
 Private Function CanConfigure() As Boolean
@@ -52,50 +65,46 @@ Private Function CanConfigure() As Boolean
 End Function
 
 Public Sub OpenQueue()
-    Dim view As MacroQueue
-
-    If Not CanConfigure Then Exit Sub
+    Dim errorNumber As Long, errorDescription As String
+    If pQueueOpen Or Not CanConfigure Then Exit Sub
 
     On Error GoTo Failed
-
-    Set view = New MacroQueue
-
-    view.Configure Me
-    RefreshQueue view
-
-    ' Blocking call.
-    view.Show vbModal
-
-    ' MacroQueue hanya Hide.
-    ' Presenter adalah owner lifecycle dan melakukan Unload
-    ' setelah modal call sudah kembali.
-    Unload view
-    Set view = Nothing
-
-    ' Sekarang aman meng-update MacroRunnerMenu.
+    If pQueue Is Nothing Then
+        Set pQueue = New MacroQueue
+        pQueue.Configure Me
+    End If
+    RefreshQueue pQueue
+    pQueueOpen = True
     Render
-
+    pQueue.Show vbModeless
     Exit Sub
 
 Failed:
-    Dim errorNumber As Long
-    Dim errorDescription As String
-
     errorNumber = Err.Number
     errorDescription = Err.Description
-
     On Error Resume Next
-
-    If Not view Is Nothing Then
-        Unload view
-        Set view = Nothing
+    If Not pQueue Is Nothing Then
+        pQueue.ReleaseRows
+        pQueue.DetachPresenter
+        Unload pQueue
+        Set pQueue = Nothing
     End If
-
+    pQueueOpen = False
+    Render
     On Error GoTo 0
-
     ShowError "Membuka MacroQueue", _
               errorNumber, _
               errorDescription
+End Sub
+
+Public Sub QueueClosed()
+    If Not pQueueOpen Then Exit Sub
+    pQueueOpen = False
+    On Error GoTo Failed
+    Render
+    Exit Sub
+Failed:
+    ShowError "Memperbarui MacroRunnerMenu setelah MacroQueue", Err.Number, Err.Description
 End Sub
 
 Public Sub OpenSelection(ByVal queueView As Object)
@@ -267,6 +276,40 @@ Failed:
     ShowError "Mengosongkan daftar macro", Err.Number, Err.Description
 End Sub
 
+Public Sub MoveSequence(ByVal view As Object, ByVal index As Long, ByVal direction As Long)
+    Dim target As Long, updated As Collection, i As Long
+    If Not CanConfigure Then Exit Sub
+    If direction <> -1 And direction <> 1 Then Exit Sub
+    If index < 1 Or index > pSequences.Count Then Exit Sub
+    target = index + direction
+    If target < 1 Or target > pSequences.Count Then Exit Sub
+
+    On Error GoTo Failed
+    Set updated = New Collection
+    For i = 1 To pSequences.Count
+        If i = index Then
+            updated.Add pSequences(target)
+        ElseIf i = target Then
+            updated.Add pSequences(index)
+        Else
+            updated.Add pSequences(i)
+        End If
+    Next i
+
+    pStore.SaveSequences updated
+    Set pSequences = updated
+    If pSelected = index Then
+        pSelected = target
+    ElseIf pSelected = target Then
+        pSelected = index
+    End If
+    RefreshQueue view, target
+    Render
+    Exit Sub
+Failed:
+    ShowError "Mengubah urutan daftar macro", Err.Number, Err.Description
+End Sub
+
 Public Function SelectSequence(ByVal index As Long) As Boolean
     If index < 1 Or index > pSequences.Count Then
         MsgBox "Pilih satu daftar macro terlebih dahulu.", vbExclamation, "Macro Queue"
@@ -303,7 +346,7 @@ Private Sub RefreshQueue(ByVal view As Object, Optional ByVal highlighted As Lon
 
     For i = 1 To pSequences.Count
         If Len(Trim$(pSequences(i).ConfigID)) > 0 Then
-            labels.Add pSequences(i).ConfigID & " | " & _
+            labels.Add pSequences(i).ConfigID & vbCrLf & _
                     pParser.QueueLabel(pSequences(i).SequenceText)
         Else
             labels.Add pParser.QueueLabel(pSequences(i).SequenceText)
@@ -547,8 +590,8 @@ Private Sub Render()
     End Select
     If pPreflighting Then caption = "Memvalidasi seluruh antrean sebelum eksekusi."
     If CanConfigure And pSelected > 0 Then caption = caption & " | " & pParser.QueueLabel(pSequences(pSelected).SequenceText)
-    pView.DisplayState pRun.StatisticsText(), caption, CanConfigure And pSelected > 0, _
-        Not pInvoking And pRun.State = "waiting", CanConfigure, CanClose
+    pView.DisplayState pRun.StatisticsText(), caption, CanConfigure And Not pQueueOpen And pSelected > 0, _
+        Not pInvoking And pRun.State = "waiting", CanConfigure And Not pQueueOpen, CanClose
 End Sub
 
 Public Sub ShowError(ByVal operation As String, ByVal number As Long, ByVal description As String)

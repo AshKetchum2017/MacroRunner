@@ -76,3 +76,10 @@
 [MacroSelection - custom ConfigID]
 + Menambahkan ConfigID TextBox agar setiap konfigurasi MacroRunner dapat diberi custom ID yang berbeda.
 + ConfigID ditampilkan di MacroSelection sehingga konfigurasi lebih mudah dibedakan.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+2026-09-27
+[MacroQueue - daftar dan urutan]
++ Menampilkan setiap konfigurasi sebagai blok dua baris dengan ConfigID Tahoma 10pt dan urutan macro Tahoma 8pt.
++ Tombol Up/Down mengubah urutan konfigurasi yang tersimpan.
+~ Select/Close kini menyembunyikan Queue tanpa mengakhiri MacroRunner; Queue dapat dibuka kembali pada alur yang diuji pengguna.
