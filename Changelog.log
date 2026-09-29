@@ -83,3 +83,9 @@
 + Menampilkan setiap konfigurasi sebagai blok dua baris dengan ConfigID Tahoma 10pt dan urutan macro Tahoma 8pt.
 + Tombol Up/Down mengubah urutan konfigurasi yang tersimpan.
 ~ Select/Close kini menyembunyikan Queue tanpa mengakhiri MacroRunner; Queue dapat dibuka kembali pada alur yang diuji pengguna.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+2026-09-29
+[MacroBehavior - token luar blok]
++ Menambahkan `@ConvertToCurves` untuk seleksi aktif, `@ClearSelection` untuk melepas seleksi, dan `@cmdContinue` untuk melanjutkan macro berikutnya secara otomatis setelah form ditutup.
++ Token luar blok yang tidak dikenal atau gagal dilewati dan dirangkum di akhir antrean; error di dalam blok macro tetap menghentikan antrean.

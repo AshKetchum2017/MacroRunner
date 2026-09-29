@@ -16,8 +16,12 @@ Private pClosedDuringCall As Boolean
 Private pToken As String
 Private pSerial As Long
 Private pClosedSeconds As Double
-Private pBehavior As MRBehaviorParser
+Private pProgram As MRBehaviorProgram
 Private pBlocks As Collection
+Private pActions As Collection
+Private pWarnings As Collection
+Private pWarningsShown As Boolean
+Private pPostPending As Boolean
 Private pRunIndex As Long
 Private pBehaviorBridgeStage As String
 Private pBehaviorBridgeError As Long
@@ -32,12 +36,14 @@ Public Sub Initialize(ByVal view As Object)
     Set pCatalog = New MRCatalog
     Set pRun = New MRRunModel
     Set pClock = New MRStopwatch
-    Set pBehavior = New MRBehaviorParser
+    Set pProgram = New MRBehaviorProgram
     Set pSequences = pStore.LoadSequences()
     Render
 End Sub
 
 Public Sub Detach()
+    CancelMRStep Me
+    pPostPending = False
     If Not pQueue Is Nothing Then
         pQueue.ReleaseRows
         pQueue.DetachPresenter
@@ -52,7 +58,7 @@ Public Property Get CanClose() As Boolean
     If pRun Is Nothing Then
         CanClose = Not pQueueOpen
     Else
-        CanClose = Not pQueueOpen And Not pInvoking And pRun.State <> "running"
+        CanClose = Not pQueueOpen And Not pInvoking And Not pPostPending And pRun.State <> "running"
     End If
 End Property
 
@@ -61,7 +67,7 @@ Public Property Get QueueOpen() As Boolean
 End Property
 
 Private Function CanConfigure() As Boolean
-    CanConfigure = Not pInvoking And (pRun.State = vbNullString Or pRun.State = "finished")
+    CanConfigure = Not pInvoking And Not pPostPending And (pRun.State = vbNullString Or pRun.State = "finished")
 End Function
 
 Public Sub OpenQueue()
@@ -220,7 +226,7 @@ Public Function SaveSelection(ByVal configID As String, _
     names = pParser.Parse(draft)
 
     result = pParser.Canonical(draft)
-    Set blocks = pBehavior.Parse(behavior, names)
+    Set blocks = pProgram.Parse(behavior, names)
 
     Set config = New MRConfiguration
     config.ConfigID = configID
@@ -368,9 +374,12 @@ Public Sub Process()
     pBehaviorBridgeError = 0
     pBehaviorBridgeProcedure = "Grammar konfigurasi"
     names = pParser.Parse(pSequences(pSelected).SequenceText)
-    Set pBlocks = pBehavior.Parse(pSequences(pSelected).BehaviorText, names)
+    Set pBlocks = pProgram.Parse(pSequences(pSelected).BehaviorText, names)
+    Set pActions = pProgram.Actions
     PreflightAll
     pRunIndex = 0
+    Set pWarnings = New Collection
+    pWarningsShown = False
     pRun.Prepare names
     RunNext
     Exit Sub
@@ -423,7 +432,7 @@ Failed:
 End Sub
 
 Public Sub ContinueRun()
-    If pInvoking Or pRun.State <> "waiting" Then Exit Sub
+    If pInvoking Or pPostPending Or pRun.State <> "waiting" Then Exit Sub
     RunNext
 End Sub
 
@@ -483,7 +492,7 @@ Private Sub RunNext()
     End If
     pInvoking = False
     operation = "Mencatat penutupan form modal"
-    If pClosedDuringCall Then pRun.CompleteCurrent pClosedSeconds, 0, vbNullString
+    If pClosedDuringCall Then FinishClosedStep
     operation = "Menampilkan status setelah pemanggilan bridge"
     Render
     Exit Sub
@@ -509,6 +518,7 @@ Failed:
     Render
     On Error GoTo 0
     ShowError "Menjalankan " & macroName, errorNumber, errorDetails
+    ShowWarningsIfFinished
 End Sub
 
 ' These callbacks report dispatch/initialization, not completion of the macro step.
@@ -552,9 +562,113 @@ Public Sub MacroUnloaded(ByVal token As String)
     If pInvoking Then
         pClosedDuringCall = True
     Else
+        FinishClosedStep
+    End If
+End Sub
+
+Private Sub FinishClosedStep()
+    Dim actionsForBlock As Collection
+    Set actionsForBlock = pActions(pRunIndex)
+    If pRunIndex = pBlocks.Count And pWarnings.Count > 0 Then
+        ScheduleCompletedStep
+        Exit Sub
+    End If
+    If actionsForBlock.Count = 0 Then
         pRun.CompleteCurrent pClosedSeconds, 0, vbNullString
         Render
+    Else
+        ScheduleCompletedStep
     End If
+End Sub
+
+Private Sub ScheduleCompletedStep()
+    If pPostPending Then Exit Sub
+    pPostPending = True
+    If ScheduleMRStep(Me) Then
+        Render
+        Exit Sub
+    End If
+    pPostPending = False
+    pRun.CompleteCurrent pClosedSeconds, 0, vbNullString
+    AddWarning "Token luar blok gagal dijadwalkan; jalankan Continue secara manual bila masih ada langkah berikutnya."
+    Render
+    ShowWarningsIfFinished
+End Sub
+
+' Called after the target form's callback has returned.
+Public Sub ResumeDeferredStep()
+    Dim actionsForBlock As Collection, action As Variant
+    Dim continueNext As Boolean
+    If Not pPostPending Or pRun.State <> "running" Then Exit Sub
+    On Error GoTo Failed
+    pRun.CompleteCurrent pClosedSeconds, 0, vbNullString
+    Set actionsForBlock = pActions(pRunIndex)
+    For Each action In actionsForBlock
+        Select Case LCase$(CStr(action))
+            Case "converttocurves": ConvertSelectedShapes
+            Case "clearselection": ClearSelectedShapes
+            Case "cmdcontinue": continueNext = True
+            Case Else: AddWarning "@" & CStr(action) & ": token tidak dikenal."
+        End Select
+    Next action
+    pPostPending = False
+    Render
+    If pRun.State = "finished" Then
+        ShowWarningsIfFinished
+    ElseIf continueNext Then
+        RunNext
+    End If
+    Exit Sub
+Failed:
+    DeferredStepFailed Err.Number, Err.Description
+End Sub
+
+Public Sub DeferredStepFailed(ByVal number As Long, ByVal description As String)
+    On Error Resume Next
+    pPostPending = False
+    If pRun.State = "running" Then pRun.CompleteCurrent pClosedSeconds, 0, vbNullString
+    AddWarning "Pemrosesan token luar blok gagal (Error " & CStr(number) & "): " & description
+    Render
+    ShowWarningsIfFinished
+End Sub
+
+Private Sub ConvertSelectedShapes()
+    Dim selected As ShapeRange
+    On Error GoTo Failed
+    Set selected = Application.ActiveSelectionRange
+    If selected Is Nothing Then GoTo NoSelection
+    If selected.Count = 0 Then GoTo NoSelection
+    selected.ConvertToCurves
+    Exit Sub
+NoSelection:
+    AddWarning "@ConvertToCurves: tidak ada objek terpilih; token dilewati."
+    Exit Sub
+Failed:
+    AddWarning "@ConvertToCurves: Error " & CStr(Err.Number) & ": " & Err.Description
+End Sub
+
+Private Sub ClearSelectedShapes()
+    On Error GoTo Failed
+    Application.ActiveDocument.ClearSelection
+    Exit Sub
+Failed:
+    AddWarning "@ClearSelection: Error " & CStr(Err.Number) & ": " & Err.Description
+End Sub
+
+Private Sub AddWarning(ByVal description As String)
+    pWarnings.Add "Langkah " & CStr(pRunIndex) & " / " & pRun.CurrentName & " - " & description
+End Sub
+
+Private Sub ShowWarningsIfFinished()
+    Dim warning As Variant, message As String
+    If pWarnings Is Nothing Or pWarningsShown Or pRun.State <> "finished" Then Exit Sub
+    pWarningsShown = True
+    If pWarnings.Count = 0 Then Exit Sub
+    message = "Token luar blok yang dilewati:" & vbCrLf
+    For Each warning In pWarnings
+        message = message & vbCrLf & CStr(warning)
+    Next warning
+    MsgBox message, vbExclamation, "Macro Runner"
 End Sub
 
 Public Sub CopyStatistics()
@@ -572,9 +686,12 @@ End Sub
 ' Runtime failures after the script returned (for example a manual draft Save).
 Public Sub BehaviorFailed(ByVal token As String, ByVal number As Long, ByVal description As String)
     If token <> pToken Or pRun.State <> "running" Then Exit Sub
+    CancelMRStep Me
+    pPostPending = False
     pRun.CompleteCurrent pClock.StopSeconds(), number, description
     Render
     ShowError "MacroBehavior " & pRun.CurrentName, number, description
+    ShowWarningsIfFinished
 End Sub
 
 Private Sub Render()
@@ -588,10 +705,11 @@ Private Sub Render()
             If Len(pRun.LastError) > 0 Then caption = "Dihentikan: " & pRun.LastError
         Case Else: caption = "Pilih daftar macro melalui Queue Settings."
     End Select
+    If pPostPending Then caption = "Memproses token setelah " & pRun.CurrentName
     If pPreflighting Then caption = "Memvalidasi seluruh antrean sebelum eksekusi."
     If CanConfigure And pSelected > 0 Then caption = caption & " | " & pParser.QueueLabel(pSequences(pSelected).SequenceText)
     pView.DisplayState pRun.StatisticsText(), caption, CanConfigure And Not pQueueOpen And pSelected > 0, _
-        Not pInvoking And pRun.State = "waiting", CanConfigure And Not pQueueOpen, CanClose
+        Not pInvoking And Not pPostPending And pRun.State = "waiting", CanConfigure And Not pQueueOpen, CanClose
 End Sub
 
 Public Sub ShowError(ByVal operation As String, ByVal number As Long, ByVal description As String)
