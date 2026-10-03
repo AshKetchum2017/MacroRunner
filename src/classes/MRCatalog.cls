@@ -180,5 +180,6 @@ Private Function DefaultForm(ByVal entryName As String, ByRef modal As Boolean) 
         Case "startpointmastermenu": DefaultForm = "StartPointMenu"
         Case "polakartunamalengkungmastermenu": DefaultForm = "PolaKartuNamaLengkungWizard": modal = True
         Case "dashlinebreaker": DefaultForm = "DashLineBreakerMenu"
+        Case "autoalign": DefaultForm = "AutoAlignMenu"
     End Select
 End Function
