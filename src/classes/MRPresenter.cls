@@ -16,6 +16,9 @@ Private pClosedDuringCall As Boolean
 Private pToken As String
 Private pSerial As Long
 Private pClosedSeconds As Double
+Private pAutoAlignTiming As Boolean
+Private pAutoAlignProcessActive As Boolean
+Private pAutoAlignSeconds As Double
 Private pProgram As MRBehaviorProgram
 Private pBlocks As Collection
 Private pActions As Collection
@@ -443,11 +446,15 @@ Private Sub RunNext()
     Dim errorNumber As Long, errorDescription As String, errorSource As String
     Dim operation As String, errorDetails As String, macroName As String, procedureName As String
     On Error GoTo Failed
+    pAutoAlignTiming = False
+    pAutoAlignProcessActive = False
+    pAutoAlignSeconds = 0#
     operation = "MRRunModel.BeginNext"
     pRun.BeginNext
     pRunIndex = pRunIndex + 1
     Set block = pBlocks(pRunIndex)
     macroName = pRun.CurrentName
+    pAutoAlignTiming = (StrComp(macroName, "AutoAlign", vbTextCompare) = 0)
     pSerial = pSerial + 1
     pToken = CStr(pSerial)
     pInvoking = True
@@ -466,7 +473,7 @@ Private Sub RunNext()
     operation = "Menyiapkan referensi callback MRPresenter"
     ' Preserve an object-valued Variant at the COM ParamArray boundary.
     Set observerArgument = Me
-    ' Successful timing starts at the actual launch, excluding catalog lookup.
+    ' Other macros start at launch; AutoAlign restarts this clock for each Process.
     operation = "MRStopwatch.Start sebelum membuka form"
     pClock.Start
     If Len(block.SourceText) > 0 Then
@@ -514,7 +521,7 @@ Failed:
     ' A secondary display/cleanup error must not replace the original failure.
     On Error Resume Next
     Set observerArgument = Nothing
-    pRun.CompleteCurrent pClock.StopSeconds(), errorNumber, errorDetails
+    pRun.CompleteCurrent StepSeconds(), errorNumber, errorDetails
     Render
     On Error GoTo 0
     ShowError "Menjalankan " & macroName, errorNumber, errorDetails
@@ -558,13 +565,40 @@ End Function
 ' A modal launch may still be on the stack. Never run the next macro here.
 Public Sub MacroUnloaded(ByVal token As String)
     If token <> pToken Or pRun.State <> "running" Then Exit Sub
-    pClosedSeconds = pClock.StopSeconds()
+    pClosedSeconds = StepSeconds()
     If pInvoking Then
         pClosedDuringCall = True
     Else
         FinishClosedStep
     End If
 End Sub
+
+' AutoAlign reports each Process attempt without changing form completion.
+Public Sub AutoAlignProcessStarted(ByVal token As String)
+    If Not pAutoAlignTiming Or token <> pToken Or pRun.State <> "running" Then Exit Sub
+    If pAutoAlignProcessActive Then Exit Sub
+    pClock.Start
+    pAutoAlignProcessActive = True
+End Sub
+
+Public Sub AutoAlignProcessFinished(ByVal token As String)
+    If Not pAutoAlignTiming Or token <> pToken Or pRun.State <> "running" Then Exit Sub
+    If Not pAutoAlignProcessActive Then Exit Sub
+    pAutoAlignSeconds = pAutoAlignSeconds + pClock.StopSeconds()
+    pAutoAlignProcessActive = False
+End Sub
+
+Private Function StepSeconds() As Double
+    If pAutoAlignTiming Then
+        If pAutoAlignProcessActive Then
+            pAutoAlignSeconds = pAutoAlignSeconds + pClock.StopSeconds()
+            pAutoAlignProcessActive = False
+        End If
+        StepSeconds = pAutoAlignSeconds
+    Else
+        StepSeconds = pClock.StopSeconds()
+    End If
+End Function
 
 Private Sub FinishClosedStep()
     Dim actionsForBlock As Collection
@@ -688,7 +722,7 @@ Public Sub BehaviorFailed(ByVal token As String, ByVal number As Long, ByVal des
     If token <> pToken Or pRun.State <> "running" Then Exit Sub
     CancelMRStep Me
     pPostPending = False
-    pRun.CompleteCurrent pClock.StopSeconds(), number, description
+    pRun.CompleteCurrent StepSeconds(), number, description
     Render
     ShowError "MacroBehavior " & pRun.CurrentName, number, description
     ShowWarningsIfFinished
