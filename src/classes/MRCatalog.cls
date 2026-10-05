@@ -160,6 +160,7 @@ End Function
 Private Function RegisteredForm(ByVal fileBaseName As String, ByRef modal As Boolean) As String
     modal = False
     Select Case LCase$(fileBaseName)
+        Case "autoalign": RegisteredForm = "AutoAlignMenu"
         Case "autodistributeuf": RegisteredForm = "AutoDistributeMenu"
         Case "exportrelated": RegisteredForm = "ExportRelatedMenu"
     End Select
